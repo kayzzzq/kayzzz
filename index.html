@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Flappy Bure Mobile</title>
+<title>Flappy Bure Deluxe</title>
 
 <style>
 html, body {
@@ -11,12 +11,10 @@ html, body {
   padding: 0;
   overflow: hidden;
   background: #70c5ce;
+  font-family: Arial, sans-serif;
   touch-action: manipulation;
 }
-
-canvas {
-  display: block;
-}
+canvas { display: block; }
 </style>
 </head>
 
@@ -28,62 +26,102 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
 }
 resize();
-window.addEventListener("resize", resize);
+addEventListener("resize", resize);
 
-let bure, pipes, score, gameOver;
-const gravity = 0.45;
-const jump = -8.5;
-const pipeGap = 160;
+// 🌤️ Nuages
+const clouds = Array.from({length: 7}, () => ({
+  x: Math.random() * canvas.width,
+  y: Math.random() * canvas.height * 0.45,
+  s: Math.random() * 0.6 + 0.3
+}));
+
+let state = "menu"; // menu | game | over
+let frame = 0;
+let score = 0;
+
+let bure, pipes;
+const gravity = 0.4;
+const jump = -8;
+const pipeGap = 170;
 const pipeWidth = 70;
-const speed = 2.5;
+const speed = 2.6;
 
-function reset() {
+function initGame() {
   bure = {
     x: canvas.width * 0.25,
     y: canvas.height / 2,
-    r: 14,
-    v: 0
+    r: 15,
+    v: 0,
+    rot: 0
   };
   pipes = [];
   score = 0;
-  gameOver = false;
 }
 
-reset();
-
 function tap() {
-  if (gameOver) reset();
-  bure.v = jump;
+  if (state === "menu") {
+    initGame();
+    state = "game";
+    return;
+  }
+  if (state === "over") {
+    state = "menu";
+    return;
+  }
+  if (state === "game") bure.v = jump;
 }
 
 canvas.addEventListener("touchstart", tap);
 canvas.addEventListener("mousedown", tap);
 
 function spawnPipe() {
-  const top = Math.random() * (canvas.height - pipeGap - 200) + 100;
-  pipes.push({
-    x: canvas.width,
-    top,
-    passed: false
+  const top = Math.random() * (canvas.height - pipeGap - 220) + 110;
+  pipes.push({ x: canvas.width, top, passed: false });
+}
+
+function drawBackground() {
+  const g = ctx.createLinearGradient(0,0,0,canvas.height);
+  g.addColorStop(0,"#5dade2");
+  g.addColorStop(1,"#aed6f1");
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  clouds.forEach(c => {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 40*c.s, 0, Math.PI*2);
+    ctx.fill();
+    c.x -= c.s * 0.6;
+    if (c.x < -50) c.x = canvas.width + 50;
   });
 }
 
-function drawBure() {
+function drawBure(x, y, v) {
+  const rot = Math.min(Math.max(v * 0.05, -0.6), 0.8);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+
   ctx.beginPath();
-  ctx.arc(bure.x, bure.y, bure.r, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffcc00";
+  ctx.arc(0,0,15,0,Math.PI*2);
+  ctx.fillStyle = "#f9e547";
   ctx.fill();
+
+  ctx.restore();
 }
 
 function drawPipes() {
-  ctx.fillStyle = "#2ecc71";
   pipes.forEach(p => {
-    ctx.fillRect(p.x, 0, pipeWidth, p.top);
-    ctx.fillRect(p.x, p.top + pipeGap, pipeWidth, canvas.height);
+    const g = ctx.createLinearGradient(p.x,0,p.x+pipeWidth,0);
+    g.addColorStop(0,"#27ae60");
+    g.addColorStop(1,"#2ecc71");
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x,0,pipeWidth,p.top);
+    ctx.fillRect(p.x,p.top+pipeGap,pipeWidth,canvas.height);
   });
 }
 
@@ -96,58 +134,70 @@ function collision(p) {
   );
 }
 
-function drawUI() {
-  ctx.fillStyle = "#000";
-  ctx.font = "bold 32px Arial";
-  ctx.fillText(score, canvas.width / 2 - 10, 60);
+function drawMenu() {
+  const float = Math.sin(frame * 0.05) * 10;
 
-  if (gameOver) {
-    ctx.fillStyle = "#000";
-    ctx.font = "bold 40px Arial";
-    ctx.fillText("GAME OVER", canvas.width / 2 - 120, canvas.height / 2);
-    ctx.font = "20px Arial";
-    ctx.fillText("Tap pour rejouer", canvas.width / 2 - 70, canvas.height / 2 + 40);
-  }
+  drawBure(canvas.width/2, canvas.height/2 - 80 + float, Math.sin(frame*0.1)*2);
+
+  ctx.fillStyle = "#000";
+  ctx.font = "bold 42px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("FLAPPY BURE", canvas.width/2, canvas.height/2 - 150);
+
+  ctx.font = "22px Arial";
+  ctx.fillText("Tap pour jouer", canvas.width/2, canvas.height/2 + 20);
 }
 
-let frame = 0;
+function drawGame() {
+  bure.v += gravity;
+  bure.y += bure.v;
 
-function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (frame % 120 === 0) spawnPipe();
 
-  if (!gameOver) {
-    bure.v += gravity;
-    bure.y += bure.v;
-
-    if (frame % 110 === 0) spawnPipe();
-
-    pipes.forEach(p => {
-      p.x -= speed;
-
-      if (!p.passed && p.x + pipeWidth < bure.x) {
-        p.passed = true;
-        score++;
-      }
-
-      if (collision(p)) gameOver = true;
-    });
-
-    pipes = pipes.filter(p => p.x + pipeWidth > 0);
-
-    if (bure.y + bure.r > canvas.height || bure.y - bure.r < 0) {
-      gameOver = true;
+  pipes.forEach(p => {
+    p.x -= speed;
+    if (!p.passed && p.x + pipeWidth < bure.x) {
+      p.passed = true;
+      score++;
     }
-  }
+    if (collision(p)) state = "over";
+  });
+
+  pipes = pipes.filter(p => p.x + pipeWidth > 0);
+
+  if (bure.y < 0 || bure.y > canvas.height) state = "over";
 
   drawPipes();
-  drawBure();
-  drawUI();
+  drawBure(bure.x, bure.y, bure.v);
 
-  frame++;
-  requestAnimationFrame(update);
+  ctx.fillStyle = "#000";
+  ctx.font = "bold 34px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(score, canvas.width/2, 60);
 }
 
-update();
+function drawGameOver() {
+  ctx.fillStyle = "#000";
+  ctx.font = "bold 42px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2 - 40);
+  ctx.font = "22px Arial";
+  ctx.fillText("Score : " + score, canvas.width/2, canvas.height/2);
+  ctx.fillText("Tap pour menu", canvas.width/2, canvas.height/2 + 40);
+}
+
+function loop() {
+  drawBackground();
+
+  if (state === "menu") drawMenu();
+  if (state === "game") drawGame();
+  if (state === "over") drawGameOver();
+
+  frame++;
+  requestAnimationFrame(loop);
+}
+
+loop();
 </script>
 </body>
-</html>
+</html> améliore le 
