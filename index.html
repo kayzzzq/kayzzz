@@ -2,61 +2,75 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Flappy Bure</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Flappy Bure Mobile</title>
+
 <style>
-  body {
-    margin: 0;
-    background: #70c5ce;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    font-family: Arial, sans-serif;
-  }
-  canvas {
-    background: linear-gradient(#70c5ce, #d0f4f7);
-    border: 2px solid #333;
-  }
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #70c5ce;
+  touch-action: manipulation;
+}
+
+canvas {
+  display: block;
+}
 </style>
 </head>
-<body>
 
-<canvas id="game" width="400" height="600"></canvas>
+<body>
+<canvas id="game"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let bure = {
-  x: 80,
-  y: 300,
-  r: 12,
-  velocity: 0
-};
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
 
-const gravity = 0.5;
-const jump = -8;
-
-let pipes = [];
-let frame = 0;
-let score = 0;
-let gameOver = false;
+let bure, pipes, score, gameOver;
+const gravity = 0.45;
+const jump = -8.5;
+const pipeGap = 160;
+const pipeWidth = 70;
+const speed = 2.5;
 
 function reset() {
-  bure.y = 300;
-  bure.velocity = 0;
+  bure = {
+    x: canvas.width * 0.25,
+    y: canvas.height / 2,
+    r: 14,
+    v: 0
+  };
   pipes = [];
   score = 0;
   gameOver = false;
 }
 
-document.addEventListener("click", () => {
-  if (gameOver) {
-    reset();
-  } else {
-    bure.velocity = jump;
-  }
-});
+reset();
+
+function tap() {
+  if (gameOver) reset();
+  bure.v = jump;
+}
+
+canvas.addEventListener("touchstart", tap);
+canvas.addEventListener("mousedown", tap);
+
+function spawnPipe() {
+  const top = Math.random() * (canvas.height - pipeGap - 200) + 100;
+  pipes.push({
+    x: canvas.width,
+    top,
+    passed: false
+  });
+}
 
 function drawBure() {
   ctx.beginPath();
@@ -66,86 +80,74 @@ function drawBure() {
 }
 
 function drawPipes() {
+  ctx.fillStyle = "#2ecc71";
   pipes.forEach(p => {
-    ctx.fillStyle = "#2ecc71";
-    ctx.fillRect(p.x, 0, p.w, p.top);
-    ctx.fillRect(p.x, p.top + p.gap, p.w, canvas.height);
+    ctx.fillRect(p.x, 0, pipeWidth, p.top);
+    ctx.fillRect(p.x, p.top + pipeGap, pipeWidth, canvas.height);
   });
 }
 
-function updatePipes() {
-  if (frame % 90 === 0) {
-    let top = Math.random() * 250 + 50;
-    pipes.push({
-      x: canvas.width,
-      w: 50,
-      top: top,
-      gap: 140
-    });
+function collision(p) {
+  return (
+    bure.x + bure.r > p.x &&
+    bure.x - bure.r < p.x + pipeWidth &&
+    (bure.y - bure.r < p.top ||
+     bure.y + bure.r > p.top + pipeGap)
+  );
+}
+
+function drawUI() {
+  ctx.fillStyle = "#000";
+  ctx.font = "bold 32px Arial";
+  ctx.fillText(score, canvas.width / 2 - 10, 60);
+
+  if (gameOver) {
+    ctx.fillStyle = "#000";
+    ctx.font = "bold 40px Arial";
+    ctx.fillText("GAME OVER", canvas.width / 2 - 120, canvas.height / 2);
+    ctx.font = "20px Arial";
+    ctx.fillText("Tap pour rejouer", canvas.width / 2 - 70, canvas.height / 2 + 40);
   }
-
-  pipes.forEach(p => {
-    p.x -= 2;
-
-    if (
-      bure.x + bure.r > p.x &&
-      bure.x - bure.r < p.x + p.w &&
-      (bure.y - bure.r < p.top ||
-       bure.y + bure.r > p.top + p.gap)
-    ) {
-      gameOver = true;
-    }
-
-    if (p.x + p.w === bure.x) {
-      score++;
-    }
-  });
-
-  pipes = pipes.filter(p => p.x + p.w > 0);
 }
 
-function drawScore() {
-  ctx.fillStyle = "#000";
-  ctx.font = "24px Arial";
-  ctx.fillText("Score : " + score, 20, 40);
-}
-
-function drawGameOver() {
-  ctx.fillStyle = "#000";
-  ctx.font = "36px Arial";
-  ctx.fillText("Game Over", 90, 300);
-  ctx.font = "18px Arial";
-  ctx.fillText("Clique pour recommencer", 95, 340);
-}
+let frame = 0;
 
 function update() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (!gameOver) {
-    bure.velocity += gravity;
-    bure.y += bure.velocity;
+    bure.v += gravity;
+    bure.y += bure.v;
+
+    if (frame % 110 === 0) spawnPipe();
+
+    pipes.forEach(p => {
+      p.x -= speed;
+
+      if (!p.passed && p.x + pipeWidth < bure.x) {
+        p.passed = true;
+        score++;
+      }
+
+      if (collision(p)) gameOver = true;
+    });
+
+    pipes = pipes.filter(p => p.x + pipeWidth > 0);
 
     if (bure.y + bure.r > canvas.height || bure.y - bure.r < 0) {
       gameOver = true;
     }
-
-    updatePipes();
-    drawPipes();
-    drawBure();
-    drawScore();
-    frame++;
-  } else {
-    drawPipes();
-    drawBure();
-    drawScore();
-    drawGameOver();
   }
 
+  drawPipes();
+  drawBure();
+  drawUI();
+
+  frame++;
   requestAnimationFrame(update);
 }
 
 update();
 </script>
-
 </body>
 </html>
