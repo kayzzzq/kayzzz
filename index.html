@@ -2,185 +2,150 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>2048 Futuriste</title>
+<title>Flappy Bure</title>
 <style>
-body {
+  body {
     margin: 0;
+    background: #70c5ce;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background: radial-gradient(circle at top, #0f0c29, #302b63, #24243e);
-    font-family: 'Orbitron', sans-serif;
-    overflow: hidden;
-}
-
-#game {
-    width: 350px;
-}
-
-#grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    padding: 10px;
-    background: rgba(0,0,0,0.4);
-    border-radius: 15px;
-    box-shadow: 0 0 40px #00ffff, 0 0 60px #ff00ff;
-}
-
-.cell {
-    width: 75px;
-    height: 75px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: rgba(255,255,255,0.05);
-    border-radius: 10px;
-    font-size: 24px;
-    font-weight: bold;
-    color: #fff;
-    transition: all 0.2s ease-in-out;
-    box-shadow: 0 0 5px #00ffff inset, 0 0 10px #ff00ff inset;
-}
-
-.cell.new {
-    animation: pop 0.3s ease;
-}
-
-@keyframes pop {
-    0% { transform: scale(0); opacity: 0; }
-    50% { transform: scale(1.2); opacity: 1; }
-    100% { transform: scale(1); }
-}
-
-button {
-    width: 100%;
-    margin-top: 15px;
-    padding: 12px;
-    background: linear-gradient(45deg, #00ffff, #ff00ff);
-    border: none;
-    border-radius: 10px;
-    color: #000;
-    font-weight: bold;
-    font-size: 16px;
-    cursor: pointer;
-    box-shadow: 0 0 20px #00ffff, 0 0 20px #ff00ff;
-    transition: all 0.2s ease;
-}
-
-button:hover {
-    transform: scale(1.05);
-}
+    font-family: Arial, sans-serif;
+  }
+  canvas {
+    background: linear-gradient(#70c5ce, #d0f4f7);
+    border: 2px solid #333;
+  }
 </style>
 </head>
 <body>
-<div id="game">
-    <div id="grid"></div>
-    <button onclick="startGame()">Recommencer</button>
-</div>
+
+<canvas id="game" width="400" height="600"></canvas>
 
 <script>
-let grid = [];
-const gridEl = document.getElementById('grid');
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-function startGame() {
-    grid = Array(16).fill(0);
-    addNumber();
-    addNumber();
-    draw();
+let bure = {
+  x: 80,
+  y: 300,
+  r: 12,
+  velocity: 0
+};
+
+const gravity = 0.5;
+const jump = -8;
+
+let pipes = [];
+let frame = 0;
+let score = 0;
+let gameOver = false;
+
+function reset() {
+  bure.y = 300;
+  bure.velocity = 0;
+  pipes = [];
+  score = 0;
+  gameOver = false;
 }
 
-function addNumber() {
-    let empty = [];
-    grid.forEach((v,i)=> v===0 && empty.push(i));
-    if(empty.length === 0) return;
-    let index = empty[Math.floor(Math.random()*empty.length)];
-    grid[index] = Math.random()<0.9 ? 2 : 4;
+document.addEventListener("click", () => {
+  if (gameOver) {
+    reset();
+  } else {
+    bure.velocity = jump;
+  }
+});
+
+function drawBure() {
+  ctx.beginPath();
+  ctx.arc(bure.x, bure.y, bure.r, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffcc00";
+  ctx.fill();
 }
 
-function draw() {
-    gridEl.innerHTML = '';
-    grid.forEach(v=>{
-        let cell = document.createElement('div');
-        cell.className = 'cell';
-        if(v!==0) cell.classList.add('new');
-        cell.textContent = v===0 ? '' : v;
-        cell.style.background = `hsl(${v*10}, 80%, 30%)`;
-        gridEl.appendChild(cell);
+function drawPipes() {
+  pipes.forEach(p => {
+    ctx.fillStyle = "#2ecc71";
+    ctx.fillRect(p.x, 0, p.w, p.top);
+    ctx.fillRect(p.x, p.top + p.gap, p.w, canvas.height);
+  });
+}
+
+function updatePipes() {
+  if (frame % 90 === 0) {
+    let top = Math.random() * 250 + 50;
+    pipes.push({
+      x: canvas.width,
+      w: 50,
+      top: top,
+      gap: 140
     });
+  }
+
+  pipes.forEach(p => {
+    p.x -= 2;
+
+    if (
+      bure.x + bure.r > p.x &&
+      bure.x - bure.r < p.x + p.w &&
+      (bure.y - bure.r < p.top ||
+       bure.y + bure.r > p.top + p.gap)
+    ) {
+      gameOver = true;
+    }
+
+    if (p.x + p.w === bure.x) {
+      score++;
+    }
+  });
+
+  pipes = pipes.filter(p => p.x + p.w > 0);
 }
 
-function slide(row) {
-    row = row.filter(v=>v);
-    for(let i=0;i<row.length-1;i++){
-        if(row[i]===row[i+1]){
-            row[i]*=2;
-            row[i+1]=0;
-        }
-    }
-    return row.filter(v=>v).concat(Array(4).fill(0)).slice(0,4);
+function drawScore() {
+  ctx.fillStyle = "#000";
+  ctx.font = "24px Arial";
+  ctx.fillText("Score : " + score, 20, 40);
 }
 
-function moveLeft() {
-    for(let i=0;i<4;i++){
-        let row = grid.slice(i*4,i*4+4);
-        let newRow = slide(row);
-        grid.splice(i*4,4,...newRow);
-    }
+function drawGameOver() {
+  ctx.fillStyle = "#000";
+  ctx.font = "36px Arial";
+  ctx.fillText("Game Over", 90, 300);
+  ctx.font = "18px Arial";
+  ctx.fillText("Clique pour recommencer", 95, 340);
 }
 
-function moveRight() {
-    for(let i=0;i<4;i++){
-        let row = grid.slice(i*4,i*4+4).reverse();
-        let newRow = slide(row).reverse();
-        grid.splice(i*4,4,...newRow);
+function update() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!gameOver) {
+    bure.velocity += gravity;
+    bure.y += bure.velocity;
+
+    if (bure.y + bure.r > canvas.height || bure.y - bure.r < 0) {
+      gameOver = true;
     }
+
+    updatePipes();
+    drawPipes();
+    drawBure();
+    drawScore();
+    frame++;
+  } else {
+    drawPipes();
+    drawBure();
+    drawScore();
+    drawGameOver();
+  }
+
+  requestAnimationFrame(update);
 }
 
-function moveUp() {
-    for(let i=0;i<4;i++){
-        let row = [grid[i],grid[i+4],grid[i+8],grid[i+12]];
-        let newRow = slide(row);
-        [grid[i],grid[i+4],grid[i+8],grid[i+12]] = newRow;
-    }
-}
-
-function moveDown() {
-    for(let i=0;i<4;i++){
-        let row = [grid[i],grid[i+4],grid[i+8],grid[i+12]].reverse();
-        let newRow = slide(row).reverse();
-        [grid[i],grid[i+4],grid[i+8],grid[i+12]] = newRow;
-    }
-}
-
-document.addEventListener('keydown', e=>{
-    if(e.key==='ArrowLeft'){ moveLeft(); addNumber(); draw();}
-    if(e.key==='ArrowRight'){ moveRight(); addNumber(); draw();}
-    if(e.key==='ArrowUp'){ moveUp(); addNumber(); draw();}
-    if(e.key==='ArrowDown'){ moveDown(); addNumber(); draw();}
-});
-
-// Swipe support for mobile
-let startX=0, startY=0;
-document.addEventListener('touchstart', e=>{
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-});
-document.addEventListener('touchend', e=>{
-    let dx = e.changedTouches[0].clientX - startX;
-    let dy = e.changedTouches[0].clientY - startY;
-    if(Math.abs(dx)>Math.abs(dy)){
-        if(dx>20){ moveRight(); addNumber(); draw();}
-        else if(dx<-20){ moveLeft(); addNumber(); draw();}
-    } else {
-        if(dy>20){ moveDown(); addNumber(); draw();}
-        else if(dy<-20){ moveUp(); addNumber(); draw();}
-    }
-});
-
-startGame();
+update();
 </script>
+
 </body>
 </html>
